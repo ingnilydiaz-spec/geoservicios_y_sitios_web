@@ -10,8 +10,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // URL del servicio WMS de GeoServer
 const geoserverUrl = 'https://geoportal.dane.gov.co/mparcgis/services/MGN2024/Serv_CapasMGN_2024/MapServer/WMSServer';
 
-// Código DANE del departamento a mostrar: La Guajira
-const GUAJIRA_CCDGO = '44';
+// Código DANE del departamento a mostrar: Boyaca
+const BOYACA_CCDGO = '15';
 
 // Agregar capa WMS de departamentos
 // Nota: el servicio es un ArcGIS MapServer WMS y no admite filtros por atributo (CQL),
@@ -31,9 +31,9 @@ let departamentosGeoJSON; // Variable para almacenar la capa GeoJSON
 fetch(departamentosWFSUrl)
     .then(response => response.json())
     .then(data => {
-        // Crear capa GeoJSON (solo La Guajira)
+        // Crear capa GeoJSON (solo Boyaca)
         departamentosGeoJSON = L.geoJSON(data, {
-            filter: feature => feature.properties.dpto_ccdgo === GUAJIRA_CCDGO,
+            filter: feature => feature.properties.dpto_ccdgo === BOYACA_CCDGO,
             style: {
                 color: '#232323',
                 weight: 2,
@@ -101,7 +101,7 @@ baseMaps["OpenStreetMap"].addTo(map);
 // ============================================================
 const guajiraDataDir = 'https://epiragauta.github.io/geoservicios_y_websites/webapp/datos/44_LA_GUAJIRA/';
 
-const capasGuajira = [
+const capasBoyaca = [
     {
         file: 'Administrativo_P.geojson', label: 'Topónimos administrativos',
         tipo: 'punto', color: '#c62828', radio: 4
@@ -137,7 +137,7 @@ const capasGuajira = [
 ];
 
 // Construye el contenido del popup a partir de los atributos más relevantes
-function popupGuajira(props) {
+function popupBoyaca(props) {
     const campos = [
         ['NOMBRE_GEO', 'Nombre'],
         ['TIPO_VIA', 'Tipo de vía'],
@@ -191,7 +191,7 @@ map.on('overlayadd', function (e) {
     const cfg = capasGuajira.find(c => c._group === e.layer);
     if (cfg && !cfg._loaded) {
         cfg._loaded = true;
-        cargarCapaGuajira(cfg);
+        cargarCapaBoyaca(cfg);
     }
 });
 
@@ -253,7 +253,7 @@ const info = L.control({position: 'topleft'});
 info.onAdd = function (map) {
     this._div = L.DomUtil.create('div', 'info');
     this._div.innerHTML = `
-        <h4>La Guajira - Servicios Geográficos</h4>
+        <h4>Boyaca - Servicios Geográficos</h4>
         <p>Visualización del departamento y sus municipios</p>
         <p><small>Datos: DANE | Servidor: GeoServer</small></p>
     `;
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Marcador de Riohacha (capital de La Guajira)
-const riohachaMarker = L.marker([11.5444, -72.9072])
+// Marcador de Riohacha (capital de Boyaca)
+const TunjaMarker = L.marker([5.54481, -73.35756])
     .addTo(map)
-    .bindPopup('<b>Riohacha</b><br>Capital de La Guajira');
+    .bindPopup('<b>Tunja</b><br>Capital Boyaca');
