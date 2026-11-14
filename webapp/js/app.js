@@ -94,7 +94,7 @@ baseMaps["OpenStreetMap"].addTo(map);
 // Capas detalladas de Boyacá (cartografía base IGAC/DANE)
 // Datos recortados por departamento en datos/15_BOYACA/.
 // ============================================================
-const boyacaDataDir = '../datos/15_BOYACA/';
+const boyacaDataDir = 'datos/15_BOYACÁ/';
 
 const capasBoyaca = [
     {
