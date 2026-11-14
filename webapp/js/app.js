@@ -22,7 +22,7 @@ const departamentosWMS = L.tileLayer.wms(geoserverUrl, {
 }).addTo(map);
 
 // URL del servicio WFS
-const departamentosWFSUrl = 'datos/departamentos.geojson';
+const departamentosWFSUrl = '../datos/departamentos.geojson';
 let departamentosGeoJSON; // Variable para almacenar la capa GeoJSON
 
 // Cargar y mostrar departamentos como GeoJSON
@@ -94,7 +94,7 @@ baseMaps["OpenStreetMap"].addTo(map);
 // Capas detalladas de Boyacá (cartografía base IGAC/DANE)
 // Datos recortados por departamento en datos/15_BOYACA/.
 // ============================================================
-const boyacaDataDir = 'https://epiragauta.github.io/geoservicios_y_websites/webapp/datos/15_BOYACA/';
+const boyacaDataDir = '../datos/15_BOYACA/';
 
 const capasBoyaca = [
     {
