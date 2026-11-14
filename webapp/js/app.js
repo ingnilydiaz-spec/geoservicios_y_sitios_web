@@ -1,5 +1,5 @@
-// Crear el mapa centrado en el departamento de La Guajira
-const map = L.map('map').setView([11.35, -72.5], 8);
+// Crear el mapa centrado en el departamento de Boyacá
+const map = L.map('map').setView([5.45, -73.36], 8);
 
 // Agregar capa base de OpenStreetMap
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -10,12 +10,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // URL del servicio WMS de GeoServer
 const geoserverUrl = 'https://geoportal.dane.gov.co/mparcgis/services/MGN2024/Serv_CapasMGN_2024/MapServer/WMSServer';
 
-// Código DANE del departamento a mostrar: Boyaca
+// Código DANE del departamento a mostrar: Boyacá
 const BOYACA_CCDGO = '15';
 
 // Agregar capa WMS de departamentos
-// Nota: el servicio es un ArcGIS MapServer WMS y no admite filtros por atributo (CQL),
-// por lo que se restringe la carga de teselas a la extensión de La Guajira mediante 'bounds'.
 const departamentosWMS = L.tileLayer.wms(geoserverUrl, {
     layers: '8',
     format: 'image/png',
@@ -24,14 +22,14 @@ const departamentosWMS = L.tileLayer.wms(geoserverUrl, {
 }).addTo(map);
 
 // URL del servicio WFS
-const departamentosWFSUrl = 'datos/departamentos.geojson'; // Cambia esto a la URL de tu servicio WFS
+const departamentosWFSUrl = 'datos/departamentos.geojson';
 let departamentosGeoJSON; // Variable para almacenar la capa GeoJSON
 
 // Cargar y mostrar departamentos como GeoJSON
 fetch(departamentosWFSUrl)
     .then(response => response.json())
     .then(data => {
-        // Crear capa GeoJSON (solo Boyaca)
+        // Crear capa GeoJSON (solo Boyacá)
         departamentosGeoJSON = L.geoJSON(data, {
             filter: feature => feature.properties.dpto_ccdgo === BOYACA_CCDGO,
             style: {
@@ -45,18 +43,18 @@ fetch(departamentosWFSUrl)
 
         // Agregar al mapa
         departamentosGeoJSON.addTo(map);
-        controlLayer.addOverlay(departamentosGeoJSON, "Departamentos (WFS)"); // Agregar al control de capas
+        controlLayer.addOverlay(departamentosGeoJSON, "Departamentos (WFS)");
 
-        // Extensión de La Guajira
-        const guajiraBounds = departamentosGeoJSON.getBounds();
+        // Extensión de Boyacá
+        const boyacaBounds = departamentosGeoJSON.getBounds();
 
-        // Restringir las teselas de ambos WMS a la extensión de La Guajira
-        departamentosWMS.options.bounds = guajiraBounds;
+        // Restringir las teselas de ambos WMS a la extensión de Boyacá
+        departamentosWMS.options.bounds = boyacaBounds;
         departamentosWMS.redraw();
-        municipiosWMS.options.bounds = guajiraBounds;
+        municipiosWMS.options.bounds = boyacaBounds;
 
-        // Centrar la vista en el departamento de La Guajira
-        map.fitBounds(guajiraBounds);
+        // Centrar la vista en el departamento de Boyacá
+        map.fitBounds(boyacaBounds);
     })
     .catch(error => console.error('Error cargando WFS:', error));
 
@@ -93,13 +91,10 @@ const controlLayer = L.control.layers(baseMaps, overlayMaps, {
 baseMaps["OpenStreetMap"].addTo(map);
 
 // ============================================================
-// Capas detalladas de La Guajira (cartografía base IGAC/DANE)
-// Datos recortados por departamento en datos/44_LA_GUAJIRA/.
-// Se cargan de forma diferida (lazy): solo se descarga el GeoJSON
-// cuando el usuario activa la capa en el control, porque algunas
-// (Drenaje, Curvas de Nivel, Vías) pesan varios MB.
+// Capas detalladas de Boyacá (cartografía base IGAC/DANE)
+// Datos recortados por departamento en datos/15_BOYACA/.
 // ============================================================
-const guajiraDataDir = 'https://epiragauta.github.io/geoservicios_y_websites/webapp/datos/44_LA_GUAJIRA/';
+const boyacaDataDir = 'https://epiragauta.github.io/geoservicios_y_websites/webapp/datos/15_BOYACA/';
 
 const capasBoyaca = [
     {
@@ -155,8 +150,8 @@ function popupBoyaca(props) {
 }
 
 // Carga (una sola vez) el GeoJSON de una capa dentro de su layerGroup
-function cargarCapaGuajira(cfg) {
-    fetch(guajiraDataDir + cfg.file)
+function cargarCapaBoyaca(cfg) {
+    fetch(boyacaDataDir + cfg.file)
         .then(response => response.json())
         .then(data => {
             const capa = L.geoJSON(data, {
@@ -170,7 +165,7 @@ function cargarCapaGuajira(cfg) {
                 }),
                 onEachFeature: (feature, layer) => {
                     if (feature.properties) {
-                        layer.bindPopup(popupGuajira(feature.properties));
+                        layer.bindPopup(popupBoyaca(feature.properties));
                     }
                 }
             });
@@ -180,7 +175,7 @@ function cargarCapaGuajira(cfg) {
 }
 
 // Registrar cada capa como overlay con carga diferida
-capasGuajira.forEach(cfg => {
+capasBoyaca.forEach(cfg => {
     cfg._group = L.layerGroup();
     cfg._loaded = false;
     controlLayer.addOverlay(cfg._group, cfg.label);
@@ -188,7 +183,7 @@ capasGuajira.forEach(cfg => {
 
 // Al activar una capa por primera vez, descargar su GeoJSON
 map.on('overlayadd', function (e) {
-    const cfg = capasGuajira.find(c => c._group === e.layer);
+    const cfg = capasBoyaca.find(c => c._group === e.layer);
     if (cfg && !cfg._loaded) {
         cfg._loaded = true;
         cargarCapaBoyaca(cfg);
@@ -253,7 +248,7 @@ const info = L.control({position: 'topleft'});
 info.onAdd = function (map) {
     this._div = L.DomUtil.create('div', 'info');
     this._div.innerHTML = `
-        <h4>Boyaca - Servicios Geográficos</h4>
+        <h4>Boyacá - Servicios Geográficos</h4>
         <p>Visualización del departamento y sus municipios</p>
         <p><small>Datos: DANE | Servidor: GeoServer</small></p>
     `;
@@ -308,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Marcador de Riohacha (capital de Boyaca)
-const TunjaMarker = L.marker([5.54481, -73.35756])
+// Marcador de Tunja (capital de Boyacá)
+const tunjaMarker = L.marker([5.5352, -73.3678])
     .addTo(map)
-    .bindPopup('<b>Tunja</b><br>Capital Boyaca');
+    .bindPopup('<b>Tunja</b><br>Capital de Boyacá');
