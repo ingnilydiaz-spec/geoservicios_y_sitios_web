@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Colombia - Departamentos y Municipios</title>
+    <title>Colombia - Servicios Geográficos</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -19,21 +19,33 @@
             width: 100%;
             height: 100vh;
         }
+        /* Caja de información superior izquierda */
         .info {
-            padding: 6px 8px;
+            padding: 8px 12px;
             font: 14px/16px Arial, sans-serif;
             background: white;
-            background: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.9);
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             border-radius: 5px;
         }
         .info h4 {
             margin: 0 0 5px;
-            color: #777;
+            color: #1d3557;
         }
+        .info p {
+            margin: 3px 0;
+            font-size: 13px;
+            color: #333;
+        }
+        /* Leyenda inferior derecha */
         .legend {
-            line-height: 18px;
+            background: white;
+            background: rgba(255,255,255,0.9);
+            line-height: 20px;
             color: #555;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
         .legend i {
             width: 18px;
@@ -42,16 +54,49 @@
             margin-right: 8px;
             opacity: 0.7;
         }
+        /* Buscador flotante superior derecha */
+        .search-container {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            background: white;
+            padding: 6px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+        }
+        #search-input {
+            padding: 5px;
+            width: 160px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        #search-btn {
+            padding: 5px 10px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #search-btn:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Buscador -->
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Buscar departamento...">
+        <button id="search-btn">Buscar</button>
+    </div>
+
     <!-- Contenedor del mapa -->
     <div id="map"></div>
 
-    <!-- Leaflet JavaScript -->
+    <!-- Leaflet JS y Script principal -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Nuestra aplicación -->
     <script src="js/app.js"></script>
 </body>
 </html>
