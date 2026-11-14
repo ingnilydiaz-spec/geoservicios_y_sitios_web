@@ -1,152 +1,314 @@
-// ==========================================
-// ARCHIVO: webapp/js/app.js (Buscador Garantizado)
-// ==========================================
+// Crear el mapa centrado en el departamento de La Guajira
+const map = L.map('map').setView([11.35, -72.5], 8);
 
-const map = L.map('map').setView([4.5709, -74.2973], 6);
+// Agregar capa base de OpenStreetMap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+}).addTo(map);
 
-// Capas Base
-const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-});
+// URL del servicio WMS de GeoServer
+const geoserverUrl = 'https://geoportal.dane.gov.co/mparcgis/services/MGN2024/Serv_CapasMGN_2024/MapServer/WMSServer';
 
-const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri'
-});
+// Código DANE del departamento a mostrar: La Guajira
+const GUAJIRA_CCDGO = '44';
 
-osm.addTo(map);
-
-// URL de GeoServer
-const geoserverWmsUrl = 'http://localhost:8080/geoserver/geoservicios/wms';
-
-// Capas WMS
-const deptoWMS = L.tileLayer.wms(geoserverWmsUrl, {
-    layers: 'geoservicios:departamentos',
+// Agregar capa WMS de departamentos
+// Nota: el servicio es un ArcGIS MapServer WMS y no admite filtros por atributo (CQL),
+// por lo que se restringe la carga de teselas a la extensión de La Guajira mediante 'bounds'.
+const departamentosWMS = L.tileLayer.wms(geoserverUrl, {
+    layers: '8',
     format: 'image/png',
     transparent: true,
-    attribution: 'IGAC / DANE'
-});
+    attribution: 'DANE - Departamento Administrativo Nacional de Estadística'
+}).addTo(map);
 
-const mpioWMS = L.tileLayer.wms(geoserverWmsUrl, {
-    layers: 'geoservicios:municipios',
+// URL del servicio WFS
+const departamentosWFSUrl = 'datos/departamentos.geojson'; // Cambia esto a la URL de tu servicio WFS
+let departamentosGeoJSON; // Variable para almacenar la capa GeoJSON
+
+// Cargar y mostrar departamentos como GeoJSON
+fetch(departamentosWFSUrl)
+    .then(response => response.json())
+    .then(data => {
+        // Crear capa GeoJSON (solo La Guajira)
+        departamentosGeoJSON = L.geoJSON(data, {
+            filter: feature => feature.properties.dpto_ccdgo === GUAJIRA_CCDGO,
+            style: {
+                color: '#232323',
+                weight: 2,
+                fillColor: '#e8f881',
+                fillOpacity: 0.5
+            },
+            onEachFeature: onEachFeature
+        });
+
+        // Agregar al mapa
+        departamentosGeoJSON.addTo(map);
+        controlLayer.addOverlay(departamentosGeoJSON, "Departamentos (WFS)"); // Agregar al control de capas
+
+        // Extensión de La Guajira
+        const guajiraBounds = departamentosGeoJSON.getBounds();
+
+        // Restringir las teselas de ambos WMS a la extensión de La Guajira
+        departamentosWMS.options.bounds = guajiraBounds;
+        departamentosWMS.redraw();
+        municipiosWMS.options.bounds = guajiraBounds;
+
+        // Centrar la vista en el departamento de La Guajira
+        map.fitBounds(guajiraBounds);
+    })
+    .catch(error => console.error('Error cargando WFS:', error));
+
+// Agregar capa WMS de municipios
+const municipiosWMS = L.tileLayer.wms(geoserverUrl, {
+    layers: '7',
     format: 'image/png',
     transparent: true,
-    attribution: 'IGAC / DANE'
+    attribution: 'DANE - Departamento Administrativo Nacional de Estadística'
 });
 
-// Control de Capas
+// Capas base
 const baseMaps = {
-    "OpenStreetMap": osm,
-    "Satellite": satellite
+    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }),
+    "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+    })
 };
 
-const overlayMaps = {
-    "Departamentos (WMS)": deptoWMS,
-    "Municipios (WMS)": mpioWMS
+// Capas superpuestas
+let overlayMaps = {
+    "Departamentos": departamentosWMS,    
+    "Municipios": municipiosWMS
 };
 
-L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
-deptoWMS.addTo(map);
+// Agregar control de capas
+const controlLayer = L.control.layers(baseMaps, overlayMaps, {
+    collapsed: false
+}).addTo(map);
 
-// Control de Información (Esquina superior izquierda)
-const infoControl = L.control({ position: 'topleft' });
-infoControl.onAdd = function (map) {
-    const div = L.DomUtil.create('div', 'info');
-    div.innerHTML = `
-        <h4>Colombia - Servicios Geográficos</h4>
-        <p>Visualización de departamentos y municipios</p>
-        <p>Datos: IGAC / DANE | Servidor: GeoServer</p>
-        <p><em>Usa el buscador para ubicar un departamento</em></p>
+// Agregar capa base por defecto
+baseMaps["OpenStreetMap"].addTo(map);
+
+// ============================================================
+// Capas detalladas de La Guajira (cartografía base IGAC/DANE)
+// Datos recortados por departamento en datos/44_LA_GUAJIRA/.
+// Se cargan de forma diferida (lazy): solo se descarga el GeoJSON
+// cuando el usuario activa la capa en el control, porque algunas
+// (Drenaje, Curvas de Nivel, Vías) pesan varios MB.
+// ============================================================
+const guajiraDataDir = 'https://epiragauta.github.io/geoservicios_y_websites/webapp/datos/44_LA_GUAJIRA/';
+
+const capasGuajira = [
+    {
+        file: 'Administrativo_P.geojson', label: 'Topónimos administrativos',
+        tipo: 'punto', color: '#c62828', radio: 4
+    },
+    {
+        file: 'Construccion_P.geojson', label: 'Construcciones',
+        tipo: 'punto', color: '#6d4c41', radio: 3
+    },
+    {
+        file: 'Costero_Insular.geojson', label: 'Costero / insular',
+        tipo: 'punto', color: '#00838f', radio: 4
+    },
+    {
+        file: 'Via.geojson', label: 'Vías',
+        tipo: 'linea', estilo: { color: '#e65100', weight: 1.5 }
+    },
+    {
+        file: 'Drenaje_Sencillo.geojson', label: 'Drenaje sencillo',
+        tipo: 'linea', estilo: { color: '#1e88e5', weight: 1 }
+    },
+    {
+        file: 'Curva_Nivel.geojson', label: 'Curvas de nivel',
+        tipo: 'linea', estilo: { color: '#8d6e63', weight: 0.8 }
+    },
+    {
+        file: 'Laguna.geojson', label: 'Lagunas',
+        tipo: 'poligono', estilo: { color: '#0277bd', weight: 1, fillColor: '#4fc3f7', fillOpacity: 0.5 }
+    },
+    {
+        file: 'Bosque.geojson', label: 'Bosques',
+        tipo: 'poligono', estilo: { color: '#1b5e20', weight: 1, fillColor: '#66bb6a', fillOpacity: 0.4 }
+    }
+];
+
+// Construye el contenido del popup a partir de los atributos más relevantes
+function popupGuajira(props) {
+    const campos = [
+        ['NOMBRE_GEO', 'Nombre'],
+        ['TIPO_VIA', 'Tipo de vía'],
+        ['ESTADO_SUP', 'Estado superficie'],
+        ['ESTADO_DRE', 'Estado drenaje'],
+        ['ALTURA_SOB', 'Altura (m)'],
+        ['TIPO_CURVA', 'Tipo de curva'],
+        ['CODIGO_USO', 'Código de uso'],
+        ['CODIGO_NOM', 'Código']
+    ];
+    const filas = campos
+        .filter(([k]) => props[k] !== undefined && props[k] !== null && props[k] !== '')
+        .map(([k, etiqueta]) => `<p style="margin:2px 0"><strong>${etiqueta}:</strong> ${props[k]}</p>`);
+    return filas.length ? `<div>${filas.join('')}</div>` : '<div>Sin atributos</div>';
+}
+
+// Carga (una sola vez) el GeoJSON de una capa dentro de su layerGroup
+function cargarCapaGuajira(cfg) {
+    fetch(guajiraDataDir + cfg.file)
+        .then(response => response.json())
+        .then(data => {
+            const capa = L.geoJSON(data, {
+                style: cfg.estilo,
+                pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                    radius: cfg.radio || 4,
+                    color: cfg.color,
+                    fillColor: cfg.color,
+                    weight: 1,
+                    fillOpacity: 0.8
+                }),
+                onEachFeature: (feature, layer) => {
+                    if (feature.properties) {
+                        layer.bindPopup(popupGuajira(feature.properties));
+                    }
+                }
+            });
+            capa.addTo(cfg._group);
+        })
+        .catch(error => console.error('Error cargando capa ' + cfg.file + ':', error));
+}
+
+// Registrar cada capa como overlay con carga diferida
+capasGuajira.forEach(cfg => {
+    cfg._group = L.layerGroup();
+    cfg._loaded = false;
+    controlLayer.addOverlay(cfg._group, cfg.label);
+});
+
+// Al activar una capa por primera vez, descargar su GeoJSON
+map.on('overlayadd', function (e) {
+    const cfg = capasGuajira.find(c => c._group === e.layer);
+    if (cfg && !cfg._loaded) {
+        cfg._loaded = true;
+        cargarCapaGuajira(cfg);
+    }
+});
+
+function onEachFeature(feature, layer) {
+    // Popup al hacer clic
+    if (feature.properties) {
+        const popupContent = `
+            <div style="text-align: center;">
+                <h3>${feature.properties.dpto_cnmbr}</h3>
+                <p><strong>Código:</strong> ${feature.properties.dpto_ccdgo}</p>
+            </div>
+        `;
+        layer.bindPopup(popupContent);
+    }
+
+    // Highlight al pasar el mouse
+    layer.on({
+        mouseover: highlightFeature,
+        mouseout: resetHighlight,
+        click: zoomToFeature
+    });
+}
+
+function highlightFeature(e) {
+    const layer = e.target;
+
+    layer.setStyle({
+        weight: 5,
+        color: '#666',
+        fillOpacity: 0.7
+    });
+
+    layer.bringToFront();
+}
+
+function resetHighlight(e) {
+    const layer = e.target;
+    layer.setStyle({
+        weight: 2,
+        color: '#232323',
+        fillOpacity: 0.5
+    });
+}
+
+function zoomToFeature(e) {
+    map.fitBounds(e.target.getBounds());
+}
+
+// Control de escala
+L.control.scale({
+    position: 'bottomleft',
+    metric: true,
+    imperial: false
+}).addTo(map);
+
+// Panel de información
+const info = L.control({position: 'topleft'});
+
+info.onAdd = function (map) {
+    this._div = L.DomUtil.create('div', 'info');
+    this._div.innerHTML = `
+        <h4>La Guajira - Servicios Geográficos</h4>
+        <p>Visualización del departamento y sus municipios</p>
+        <p><small>Datos: DANE | Servidor: GeoServer</small></p>
     `;
+    return this._div;
+};
+
+info.addTo(map);
+
+// Crear control de búsqueda
+const searchControl = L.control({position: 'topright'});
+
+searchControl.onAdd = function (map) {
+    const div = L.DomUtil.create('div', 'search-control');
+    div.innerHTML = `
+        <input type="text" id="search-input" placeholder="Buscar departamento...">
+        <button id="search-button">Buscar</button>
+    `;
+    L.DomEvent.disableClickPropagation(div);
     return div;
 };
-infoControl.addTo(map);
 
-// Control de Leyenda (Esquina inferior derecha)
-const legendControl = L.control({ position: 'bottomright' });
-legendControl.onAdd = function (map) {
-    const div = L.DomUtil.create('div', 'legend');
-    div.innerHTML = `
-        <strong>Leyenda</strong><br>
-        <i style="background: #d4edda; border: 1px solid #000;"></i> Departamentos<br>
-        <span style="display:inline-block; width:18px; text-align:center; color:#007bff; font-weight:bold;">📍</span> Capital
-    `;
-    return div;
-};
-legendControl.addTo(map);
+searchControl.addTo(map);
 
-// Base de coordenadas de los departamentos para el buscador
-const departamentosCoordenadas = {
-    "boyaca": [[4.65, -74.15], [7.05, -71.95]],
-    "boyacá": [[4.65, -74.15], [7.05, -71.95]],
-    "antioquia": [[5.41, -77.1], [8.88, -73.89]],
-    "cundinamarca": [[3.73, -74.9], [5.83, -73.04]],
-    "bogota": [[4.46, -74.25], [4.83, -74.00]],
-    "bogotá": [[4.46, -74.25], [4.83, -74.00]],
-    "valle del cauca": [[3.11, -77.56], [5.12, -75.76]],
-    "santander": [[5.71, -74.52], [8.13, -72.46]],
-    "atlantico": [[10.25, -75.34], [11.12, -74.43]],
-    "atlántico": [[10.25, -75.34], [11.12, -74.43]],
-    "bolivar": [[7.35, -75.56], [10.51, -73.79]],
-    "bolívar": [[7.35, -75.56], [10.51, -73.79]],
-    "tolima": [[2.76, -76.38], [5.37, -74.40]],
-    "huila": [[1.55, -77.01], [3.51, -74.45]],
-    "narino": [[0.35, -79.01], [2.71, -76.79]],
-    "nariño": [[0.35, -79.01], [2.71, -76.79]],
-    "cauca": [[0.97, -77.58], [3.31, -75.77]],
-    "meta": [[1.59, -74.99], [4.94, -71.05]],
-    "choco": [[4.22, -77.55], [8.70, -76.01]],
-    "chocó": [[4.22, -77.55], [8.70, -76.01]],
-    "casanare": [[4.17, -73.95], [6.33, -69.84]],
-    "arauca": [[6.12, -72.35], [7.18, -69.82]],
-    "vichada": [[2.69, -71.07], [6.28, -67.43]],
-    "guainia": [[1.13, -70.43], [3.87, -66.85]],
-    "guaviare": [[0.90, -74.42], [2.97, -71.23]],
-    "caqueta": [[-1.71, -76.35], [2.22, -72.23]],
-    "amazonas": [[-4.23, -74.12], [2.16, -69.65]],
-    "putumayo": [[-0.64, -77.17], [1.39, -74.83]],
-    "magdalena": [[9.22, -75.12], [11.35, -73.43]],
-    "cesar": [[7.71, -74.13], [10.85, -72.85]],
-    "la guajira": [[10.42, -73.65], [12.46, -71.12]],
-    "sucre": [[8.24, -75.62], [9.84, -74.77]],
-    "cordoba": [[7.35, -76.51], [9.43, -74.78]],
-    "córdoba": [[7.35, -76.51], [9.43, -74.78]],
-    "quindio": [[4.35, -75.92], [4.76, -75.47]],
-    "risaralda": [[4.75, -76.30], [5.55, -75.56]],
-    "caldas": [[4.82, -75.92], [5.60, -74.63]]
-};
+// Función de búsqueda
+document.addEventListener('DOMContentLoaded', function() {
+    const searchButton = document.getElementById('search-button');
+    const searchInput = document.getElementById('search-input');
 
-// Lógica de Búsqueda
-const searchBtn = document.getElementById('search-btn');
-const searchInput = document.getElementById('search-input');
+    function buscar() {
+        const searchText = searchInput.value.trim().toLowerCase();
+        if (!searchText || !departamentosGeoJSON) return;
 
-function realizarBusqueda() {
-    const texto = searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    if (!texto) return;
+        let encontrado = null;
+        departamentosGeoJSON.eachLayer(function(layer) {
+            const nombre = layer.feature.properties.dpto_cnmbr.toLowerCase();
+            if (!encontrado && nombre.includes(searchText)) {
+                encontrado = layer;
+            }
+        });
 
-    let boundsEncontrados = null;
-    for (let key in departamentosCoordenadas) {
-        const keyLimpia = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        if (keyLimpia.includes(texto) || texto.includes(keyLimpia)) {
-            boundsEncontrados = departamentosCoordenadas[key];
-            break;
+        if (encontrado) {
+            map.fitBounds(encontrado.getBounds());
+            encontrado.openPopup();
+        } else {
+            alert('No se encontró el departamento: ' + searchInput.value);
         }
     }
 
-    if (boundsEncontrados) {
-        map.fitBounds(boundsEncontrados, { padding: [50, 50] });
-        L.popup()
-            .setLatLng(map.getCenter())
-            .setContent(`<strong>Departamento: ${searchInput.value.toUpperCase()}</strong>`)
-            .openOn(map);
-    } else {
-        alert('Departamento no encontrado. Prueba escribiendo: boyaca, antioquia, cundinamarca...');
-    }
-}
-
-if (searchBtn && searchInput) {
-    searchBtn.addEventListener('click', realizarBusqueda);
-    searchInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') realizarBusqueda();
+    searchButton.addEventListener('click', buscar);
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') buscar();
     });
-}
+});
+
+// Marcador de Riohacha (capital de La Guajira)
+const riohachaMarker = L.marker([11.5444, -72.9072])
+    .addTo(map)
+    .bindPopup('<b>Riohacha</b><br>Capital de La Guajira');
